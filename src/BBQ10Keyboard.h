@@ -1,6 +1,9 @@
-#include <Wire.h>
+#include <driver/i2c.h>
 
 #define BBQ10KEYBOARD_DEFAULT_ADDR 0x1f
+#define BBQ10KEYBOARD_DEFAULT_SDA 23
+#define BBQ10KEYBOARD_DEFAULT_SCL 22
+#define BBQ10KEYBOARD_DEFAULT_I2C_PORT 0
 
 class BBQ10Keyboard
 {
@@ -21,12 +24,15 @@ class BBQ10Keyboard
 
         BBQ10Keyboard();
 
-        void begin(uint8_t addr = BBQ10KEYBOARD_DEFAULT_ADDR, TwoWire *wire = &Wire);
+        void begin(uint8_t addr = BBQ10KEYBOARD_DEFAULT_ADDR,
+                   uint8_t pin_sda = BBQ10KEYBOARD_DEFAULT_SDA,
+                   uint8_t pin_scl = BBQ10KEYBOARD_DEFAULT_SCL,
+                   uint8_t port = BBQ10KEYBOARD_DEFAULT_I2C_PORT);
 
         void reset(void);
 
-        void attachInterrupt(uint8_t pin, void (*func)(void)) const;
-        void detachInterrupt(uint8_t pin) const;
+        void attachInterrupt(gpio_num_t pin, gpio_isr_t func) const;
+        void detachInterrupt(gpio_num_t pin) const;
         void clearInterruptStatus(void);
 
         uint8_t status(void) const;
@@ -50,6 +56,7 @@ class BBQ10Keyboard
         void updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value);
 
     private:
-        TwoWire *m_wire;
         uint8_t m_addr;
+        i2c_cmd_handle_t m_cmd;
+        uint8_t m_port;
 };

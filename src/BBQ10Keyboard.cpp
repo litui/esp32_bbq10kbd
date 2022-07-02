@@ -1,6 +1,22 @@
-#include <Arduino.h>
-
+#include <driver/gpio.h>
+#include <driver/i2c.h>
 #include "BBQ10Keyboard.h"
+
+// Standins for leftover Arduino defines
+#define LOW    0x00
+#define HIGH   0x01
+//GPIO FUNCTIONS
+#define INPUT             0x01
+// Changed OUTPUT from 0x02 to behave the same as Arduino pinMode(pin,OUTPUT) 
+// where you can read the state of pin even when it is set as OUTPUT
+#define OUTPUT            0x03 
+#define PULLUP            0x04
+#define INPUT_PULLUP      0x05
+#define PULLDOWN          0x08
+#define INPUT_PULLDOWN    0x09
+#define OPEN_DRAIN        0x10
+#define OUTPUT_OPEN_DRAIN 0x12
+#define ANALOG            0xC0
 
 #define _REG_VER 0x01 // fw version
 #define _REG_CFG 0x02 // config
@@ -45,39 +61,58 @@
 #define PUD_UP           1
 
 BBQ10Keyboard::BBQ10Keyboard()
-    : m_wire(nullptr)
 {
-
 }
 
-void BBQ10Keyboard::begin(uint8_t addr, TwoWire *wire)
+void BBQ10Keyboard::begin(uint8_t addr, uint8_t pin_sda, uint8_t pin_scl, uint8_t port)
 {
+    m_port = 0;
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = pin_sda,         // select GPIO specific to your project
+        .scl_io_num = pin_scl,         // select GPIO specific to your project
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master = {
+            .clk_speed = 400000
+        },  // select frequency specific to your project
+        .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
+    };
+
+    i2c_param_config(m_port, &conf);
     m_addr = addr;
-    m_wire = wire;
-
-    m_wire->begin();
-
+    i2c_driver_install(m_port, I2C_MODE_MASTER, 0, 0, 0);
+    m_cmd = i2c_cmd_link_create();
     reset();
 }
 
 void BBQ10Keyboard::reset()
 {
-    m_wire->beginTransmission(m_addr);
-    m_wire->write(_REG_RST);
-    m_wire->endTransmission();
-
-    delay(100);
+    i2c_master_start(m_cmd);
+    i2c_master_write_byte(m_cmd, m_addr, true);
+    i2c_master_write_byte(m_cmd, _REG_RST, true);
+    i2c_master_stop(m_cmd);
+    i2c_master_cmd_begin(m_port, m_cmd, 200);
 }
 
-void BBQ10Keyboard::attachInterrupt(uint8_t pin, void (*func)()) const
+void BBQ10Keyboard::attachInterrupt(gpio_num_t pin, gpio_isr_t func) const
 {
-    ::pinMode(pin, INPUT_PULLUP);
-    ::attachInterrupt(digitalPinToInterrupt(pin), func, RISING);
+    // Initialize ISR service
+    gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1);
+    gpio_config_t gpioconf = {
+        .pin_bit_mask = (uint64_t) 1 << pin,          /*!< GPIO pin: set with bit mask, each bit maps to a GPIO */
+        .mode         = GPIO_MODE_INPUT,              /*!< GPIO mode: set input/output mode                     */
+        .pull_up_en   = GPIO_PULLUP_ENABLE,           /*!< GPIO pull-up                                         */
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,        /*!< GPIO pull-down                                       */
+        .intr_type    = GPIO_INTR_LOW_LEVEL           /*!< GPIO interrupt type                                  */
+    };
+    gpio_config(&gpioconf);
+	gpio_isr_handler_add(pin, func, 0);
 }
 
-void BBQ10Keyboard::detachInterrupt(uint8_t pin) const
+void BBQ10Keyboard::detachInterrupt(gpio_num_t pin) const
 {
-    ::detachInterrupt(pin);
+    gpio_isr_handler_remove(pin);
 }
 
 void BBQ10Keyboard::clearInterruptStatus()
@@ -136,7 +171,7 @@ void BBQ10Keyboard::pinMode(uint8_t pin, uint8_t mode)
 
     if (mode == INPUT || mode == INPUT_PULLUP) {
         updateRegisterBit(_REG_DIR, pin, DIR_INPUT);
-    } else if (mode == OUTPUT) {
+    } else if (mode == GPIO_MODE_OUTPUT) {
         updateRegisterBit(_REG_DIR, pin, DIR_OUTPUT);
     }
 }
@@ -166,47 +201,41 @@ int BBQ10Keyboard::digitalRead(uint8_t pin)
 
 uint8_t BBQ10Keyboard::readRegister8(uint8_t reg) const
 {
-    m_wire->beginTransmission(m_addr);
-    m_wire->write(reg);
-    m_wire->endTransmission();
-
-    m_wire->requestFrom(m_addr, 1);
-    if (m_wire->available() < 1)
-        return 0;
-
-    return m_wire->read();
+    i2c_master_start(m_cmd);
+    i2c_master_write_byte(m_cmd, reg, true);
+    i2c_master_stop(m_cmd);
+    i2c_master_cmd_begin(m_port, m_cmd, 200);
+    uint8_t *r_buf = (uint8_t*) malloc(1);
+    i2c_master_read_from_device(m_port, m_addr, r_buf, sizeof(r_buf), 200);
+    return *r_buf;
 }
 
 uint16_t BBQ10Keyboard::readRegister16(uint8_t reg) const
 {
-    m_wire->beginTransmission(m_addr);
-    m_wire->write(reg);
-    m_wire->endTransmission();
-
-    m_wire->requestFrom(m_addr, 2);
-    if (m_wire->available() < 2)
+    i2c_master_start(m_cmd);
+    i2c_master_write_byte(m_cmd, reg, true);
+    i2c_master_stop(m_cmd);
+    i2c_master_cmd_begin(m_port, m_cmd, 200);
+    uint8_t *r_buf = (uint8_t*) malloc(2);
+    r_buf[0] = 0;
+    r_buf[1] = 0;
+    i2c_master_read_from_device(m_port, m_addr, r_buf, sizeof(r_buf), 200);
+    if (!r_buf[0] or !r_buf[1]) {
         return 0;
-
-    const uint8_t low = m_wire->read();
-    const uint8_t high = m_wire->read();
-
-    return (high << 8) | low;
+    }
+    return (r_buf[1] << 8) | r_buf[0];
 }
 
 uint8_t BBQ10Keyboard::readRegisterBit(uint8_t reg, uint8_t bit)
 {
-    return bitRead(readRegister8(reg), bit);
+    return ((readRegister8(reg) >> (bit)) & 0x01);
 }
 
 void BBQ10Keyboard::writeRegister(uint8_t reg, uint8_t value)
 {
-    uint8_t data[2];
-    data[0] = reg | _WRITE_MASK;
-    data[1] = value;
-
-    m_wire->beginTransmission(m_addr);
-    m_wire->write(data, sizeof(uint8_t) * 2);
-    m_wire->endTransmission();
+    const uint8_t *w_buf = (uint8_t*) malloc (1);
+    w_buf = &value;
+    i2c_master_write_to_device(m_port, m_addr, w_buf, 1, 200);
 }
 
 void BBQ10Keyboard::updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value)
@@ -214,8 +243,8 @@ void BBQ10Keyboard::updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value)
     uint8_t oldValue = readRegister8(reg);
     uint8_t newValue = oldValue;
 
-    bitWrite(newValue, bit, value);
-
+    ((value) ? ((newValue) |= (1UL << (bit))) : ((newValue) &= ~(1UL << (bit))));
+    
     if (newValue != oldValue)
         writeRegister(reg, newValue);
 }
