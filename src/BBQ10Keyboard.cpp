@@ -255,7 +255,8 @@ uint16_t BBQ10Keyboard::readRegister16(uint8_t reg) const
     i2c_master_write_byte(cmd, reg, I2C_MASTER_ACK);
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_READ, true);
-    i2c_master_read(cmd, l_buf, len, I2C_MASTER_LAST_NACK);
+    i2c_master_read_byte(cmd, l_buf, I2C_MASTER_ACK);
+    i2c_master_read_byte(cmd, l_buf + 1, I2C_MASTER_NACK);
     i2c_master_stop(cmd);
     i2c_err = i2c_master_cmd_begin(m_port, cmd, 50/portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
