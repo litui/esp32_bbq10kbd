@@ -1,11 +1,32 @@
-# BBQ10Keyboard Library for Arduino
+# BBQ10Keyboard Library for ESP32
 
-Arduino library for interfacing the BB Q10 Keyboard over I2C.
+ESP32 library for interfacing the BB Q10 and BB Q20 Keyboards over I2C.
 
+<<<<<<< HEAD
+_This library works a touch differently from the Arduino library._ 
+Be sure to look over the code as the examples are not yet ported.
+
+The firmwares that this library should be used with can be found here: 
+
+* BB Q10: https://github.com/solderparty/bbq10kbd_i2c_sw
+* BB Q20: https://github.com/solderparty/i2c_puppet
+=======
 The firmware that this library should be used with can be found here: https://github.com/solderparty/bbq10kbd_i2c_sw
+>>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
 
 # Installation
 
-1. Click "Clone or Download" above to get an "arduino_bbq10kbd-master.zip" file.
-2. Extract its contents to the libraries folder in your Arduino sketchbook. (".../Documents/Arduino/libraries" on Windows)
-3. Rename the folder from "arduino_bbq10kbd-master" to "BBQ10Keyboard".
+Within your ESP-IDF project directory (project must be git-based):
+
+```
+git submodule add https://github.com/litui/esp32_bbq10kbd components/BBQ10Keyboard
+```
+
+Alternately, download the zip of this repo and unzip it to components/BBQ10Keyboard.
+
+Be sure to add BBQ10Keyboard to your CMakeLists.txt requirements for your main application if needed.
+
+# TODO
+
+* Examples still need to be ported.
+* Fully test the GPIO expander functionality.
