@@ -2,7 +2,6 @@
 
 ESP32 library for interfacing the BB Q10 and BB Q20 Keyboards over I2C.
 
-<<<<<<< HEAD
 _This library works a touch differently from the Arduino library._ 
 Be sure to look over the code as the examples are not yet ported.
 
