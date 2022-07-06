@@ -12,7 +12,6 @@ The firmwares that this library should be used with can be found here:
 * BB Q20: https://github.com/solderparty/i2c_puppet
 =======
 The firmware that this library should be used with can be found here: https://github.com/solderparty/bbq10kbd_i2c_sw
->>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
 
 # Installation
 
