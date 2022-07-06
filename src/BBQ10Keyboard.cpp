@@ -3,7 +3,6 @@
 #include <driver/i2c.h>
 #include "BBQ10Keyboard.h"
 
-<<<<<<< HEAD
 namespace bbq10 {
 
 // Standins for leftover Arduino defines
@@ -22,8 +21,6 @@ namespace bbq10 {
 #define OUTPUT_OPEN_DRAIN 0x12
 #define ANALOG            0xC0
 
-=======
->>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
 #define _REG_VER 0x01 // fw version
 #define _REG_CFG 0x02 // config
 #define _REG_INT 0x03 // interrupt status
@@ -62,8 +59,6 @@ namespace bbq10 {
 
 #define DIR_OUTPUT       0
 #define DIR_INPUT        1
-<<<<<<< HEAD
-=======
 
 #define PUD_DOWN         0
 #define PUD_UP           1
@@ -71,7 +66,6 @@ namespace bbq10 {
 BBQ10Keyboard::BBQ10Keyboard()
     : m_wire(nullptr)
 {
->>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
 
 #define PUD_DOWN         0
 #define PUD_UP           1
@@ -122,7 +116,6 @@ void BBQ10Keyboard::reset()
 
 void BBQ10Keyboard::attachInterrupt(gpio_num_t pin, gpio_isr_t func) const
 {
-<<<<<<< HEAD
     // Initialize ISR service
     gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1);
     gpio_config_t gpioconf = {
@@ -133,11 +126,7 @@ void BBQ10Keyboard::attachInterrupt(gpio_num_t pin, gpio_isr_t func) const
         .intr_type    = GPIO_INTR_LOW_LEVEL           /*!< GPIO interrupt type                                  */
     };
     gpio_config(&gpioconf);
-	gpio_isr_handler_add(pin, func, 0);
-=======
-    ::pinMode(pin, INPUT_PULLUP);
-    ::attachInterrupt(digitalPinToInterrupt(pin), func, RISING);
->>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
+    gpio_isr_handler_add(pin, func, 0);
 }
 
 void BBQ10Keyboard::detachInterrupt(gpio_num_t pin) const
@@ -204,11 +193,7 @@ void BBQ10Keyboard::pinMode(uint8_t pin, uint8_t mode)
 
     if (mode == INPUT || mode == INPUT_PULLUP) {
         updateRegisterBit(_REG_DIR, pin, DIR_INPUT);
-<<<<<<< HEAD
     } else if (mode == GPIO_MODE_OUTPUT) {
-=======
-    } else if (mode == OUTPUT) {
->>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
         updateRegisterBit(_REG_DIR, pin, DIR_OUTPUT);
     }
 }
@@ -331,7 +316,6 @@ void BBQ10Keyboard::updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value)
     uint8_t oldValue = readRegister8(reg);
     uint8_t newValue = oldValue;
 
-<<<<<<< HEAD
     ((value) ? ((newValue) |= (1UL << (bit))) : ((newValue) &= ~(1UL << (bit))));
     
     if (newValue != oldValue)
@@ -339,10 +323,3 @@ void BBQ10Keyboard::updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value)
 }
 
 } // namespace bbq10
-=======
-    bitWrite(newValue, bit, value);
-
-    if (newValue != oldValue)
-        writeRegister(reg, newValue);
-}
->>>>>>> 0cd3c31b7b9adec645a4fb24864f61e7661fb795
