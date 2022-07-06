@@ -274,7 +274,7 @@ uint16_t BBQ10Keyboard::readRegister16(uint8_t reg) const
 
 uint8_t BBQ10Keyboard::readRegisterBit(uint8_t reg, uint8_t bit)
 {
-    return ((readRegister8(reg) >> (bit)) & 0x01);
+    return ((readRegister8(reg) >> (bit)));
 }
 
 void BBQ10Keyboard::writeRegister(uint8_t reg, uint8_t value)
