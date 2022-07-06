@@ -1,6 +1,9 @@
+#include <stdio.h>
 #include <driver/gpio.h>
 #include <driver/i2c.h>
 #include "BBQ10Keyboard.h"
+
+namespace bbq10 {
 
 // Standins for leftover Arduino defines
 #define LOW    0x00
@@ -64,35 +67,44 @@ BBQ10Keyboard::BBQ10Keyboard()
 {
 }
 
-void BBQ10Keyboard::begin(uint8_t addr, uint8_t pin_sda, uint8_t pin_scl, uint8_t port)
+void BBQ10Keyboard::begin(uint8_t addr, gpio_num_t pin_sda, gpio_num_t pin_scl, i2c_port_t port)
 {
-    m_port = 0;
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = pin_sda,         // select GPIO specific to your project
-        .scl_io_num = pin_scl,         // select GPIO specific to your project
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master = {
-            .clk_speed = 400000
-        },  // select frequency specific to your project
-        .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
-    };
-
-    i2c_param_config(m_port, &conf);
+    m_port = port;
     m_addr = addr;
-    i2c_driver_install(m_port, I2C_MODE_MASTER, 0, 0, 0);
-    m_cmd = i2c_cmd_link_create();
+    i2c_config_t conf = { };
+    conf.mode = I2C_MODE_MASTER;
+    conf.scl_io_num = pin_scl;
+    conf.sda_io_num = pin_sda;
+    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.master.clk_speed = 100000;
+    conf.clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL; //Any one clock source that is available for the specified frequency may be choosen
+
+    if (i2c_driver_install(m_port, conf.mode, 0, 0, 0) != ESP_OK) {
+        ESP_LOGE(TAG, "Error on i2c_driver_install.");
+        return;
+    }
+    if (i2c_param_config((i2c_port_t) m_port, &conf) != ESP_OK) {
+        ESP_LOGE(TAG, "Error on i2c_param_config.");
+        return;
+    }
+
+    // This ended up being critical:
+    i2c_set_timeout((i2c_port_t) m_port, 400000);
     reset();
 }
 
 void BBQ10Keyboard::reset()
 {
-    i2c_master_start(m_cmd);
-    i2c_master_write_byte(m_cmd, m_addr, true);
-    i2c_master_write_byte(m_cmd, _REG_RST, true);
-    i2c_master_stop(m_cmd);
-    i2c_master_cmd_begin(m_port, m_cmd, 200);
+    uint8_t rst = _REG_RST;
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, rst, I2C_MASTER_ACK);
+    i2c_master_stop(cmd);
+    i2c_master_cmd_begin(m_port, cmd, 50/portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
 }
 
 void BBQ10Keyboard::attachInterrupt(gpio_num_t pin, gpio_isr_t func) const
@@ -132,10 +144,13 @@ uint8_t BBQ10Keyboard::keyCount() const
 
 BBQ10Keyboard::KeyEvent BBQ10Keyboard::keyEvent() const
 {
+    ESP_LOGD(TAG, "Called BBQ10Keyboard::keyEvent().");
     KeyEvent event = { .key = '\0', .state = StateIdle };
 
-    if (keyCount() == 0)
+    if (keyCount() == 0) {
+        ESP_LOGD(TAG, "Returned 0 from keyCount()");
         return event;
+    }
 
     const uint16_t buf = readRegister16(_REG_FIF);
     event.key = buf >> 8;
@@ -201,29 +216,60 @@ int BBQ10Keyboard::digitalRead(uint8_t pin)
 
 uint8_t BBQ10Keyboard::readRegister8(uint8_t reg) const
 {
-    i2c_master_start(m_cmd);
-    i2c_master_write_byte(m_cmd, reg, true);
-    i2c_master_stop(m_cmd);
-    i2c_master_cmd_begin(m_port, m_cmd, 200);
-    uint8_t *r_buf = (uint8_t*) malloc(1);
-    i2c_master_read_from_device(m_port, m_addr, r_buf, sizeof(r_buf), 200);
-    return *r_buf;
+    esp_err_t i2c_err;
+    uint8_t len = 1;
+    uint8_t *r_buf = (uint8_t*) malloc(len);
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, I2C_MASTER_ACK);
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_READ, true);
+    i2c_master_read_byte(cmd, r_buf + len, I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    i2c_err = i2c_master_cmd_begin(m_port, cmd, 50/portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    if (i2c_err == ESP_OK) {
+        ESP_LOGD(TAG, "readRegister8 reading from register %#02x at address %#02x: value: %#02x", reg, m_addr, r_buf[0]);
+    } else if (i2c_err == ESP_ERR_TIMEOUT) {
+        ESP_LOGW(TAG, "Bus is busy");
+        return 0;
+    } else {
+        ESP_LOGW(TAG, "Read failed: %#04x", i2c_err);
+    }
+
+    uint8_t r_ret = r_buf[0];
+    free(r_buf);
+    return r_ret;
 }
 
 uint16_t BBQ10Keyboard::readRegister16(uint8_t reg) const
 {
-    i2c_master_start(m_cmd);
-    i2c_master_write_byte(m_cmd, reg, true);
-    i2c_master_stop(m_cmd);
-    i2c_master_cmd_begin(m_port, m_cmd, 200);
-    uint8_t *r_buf = (uint8_t*) malloc(2);
-    r_buf[0] = 0;
-    r_buf[1] = 0;
-    i2c_master_read_from_device(m_port, m_addr, r_buf, sizeof(r_buf), 200);
-    if (!r_buf[0] or !r_buf[1]) {
+    esp_err_t i2c_err;
+    uint8_t len = 2;
+    uint8_t *l_buf = (uint8_t*) malloc(len);
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, I2C_MASTER_ACK);
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_READ, true);
+    i2c_master_read(cmd, l_buf, len, I2C_MASTER_LAST_NACK);
+    i2c_master_stop(cmd);
+    i2c_err = i2c_master_cmd_begin(m_port, cmd, 50/portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    uint16_t lr_buf = (l_buf[1] << 8) | l_buf[0];
+    if (i2c_err == ESP_OK) {
+        ESP_LOGD(TAG, "readRegister16 Addr: %#02x; Register: %#02x; Read 8bit: %#02x, %#02x; Read 16bit: %#04x", m_addr, reg, l_buf[0], l_buf[1], lr_buf);
+    } else if (i2c_err == ESP_ERR_TIMEOUT) {
+        ESP_LOGW(TAG, "Bus is busy");
         return 0;
+    } else {
+        ESP_LOGW(TAG, "Read failed: %#04x", i2c_err);
     }
-    return (r_buf[1] << 8) | r_buf[0];
+    free(l_buf);
+    return lr_buf;
 }
 
 uint8_t BBQ10Keyboard::readRegisterBit(uint8_t reg, uint8_t bit)
@@ -233,9 +279,24 @@ uint8_t BBQ10Keyboard::readRegisterBit(uint8_t reg, uint8_t bit)
 
 void BBQ10Keyboard::writeRegister(uint8_t reg, uint8_t value)
 {
-    const uint8_t *w_buf = (uint8_t*) malloc (1);
-    w_buf = &value;
-    i2c_master_write_to_device(m_port, m_addr, w_buf, 1, 200);
+    esp_err_t i2c_err;
+    uint8_t l_val = value;
+    uint8_t *l_ptr = &l_val;
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, m_addr << 1 | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, I2C_MASTER_ACK);
+    i2c_master_write_byte(cmd, value, I2C_MASTER_ACK);
+    i2c_master_stop(cmd);
+    i2c_err = i2c_master_cmd_begin(m_port, cmd, 50/portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    if (i2c_err == ESP_OK) {
+        ESP_LOGI(TAG, "Write OK");
+    } else if (i2c_err == ESP_ERR_TIMEOUT) {
+        ESP_LOGW(TAG, "Bus is busy");
+    } else {
+        ESP_LOGW(TAG, "Write Failed");
+    }
 }
 
 void BBQ10Keyboard::updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value)
@@ -248,3 +309,5 @@ void BBQ10Keyboard::updateRegisterBit(uint8_t reg, uint8_t bit, uint8_t value)
     if (newValue != oldValue)
         writeRegister(reg, newValue);
 }
+
+} // namespace bbq10

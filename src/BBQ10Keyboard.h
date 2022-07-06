@@ -1,9 +1,14 @@
-#include <driver/i2c.h>
+#include "esp_log.h"
+#include "driver/i2c.h"
 
-#define BBQ10KEYBOARD_DEFAULT_ADDR 0x1f
-#define BBQ10KEYBOARD_DEFAULT_SDA 23
-#define BBQ10KEYBOARD_DEFAULT_SCL 22
-#define BBQ10KEYBOARD_DEFAULT_I2C_PORT 0
+namespace bbq10 {
+
+static const uint8_t BBQ10KEYBOARD_DEFAULT_ADDR = 0x1f;
+static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SDA = GPIO_NUM_21;
+static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SCL = GPIO_NUM_22;
+static const i2c_port_t BBQ10KEYBOARD_DEFAULT_I2C_PORT = I2C_NUM_0;
+
+static const char* TAG = "BBQ10Keyboard";
 
 class BBQ10Keyboard
 {
@@ -25,9 +30,9 @@ class BBQ10Keyboard
         BBQ10Keyboard();
 
         void begin(uint8_t addr = BBQ10KEYBOARD_DEFAULT_ADDR,
-                   uint8_t pin_sda = BBQ10KEYBOARD_DEFAULT_SDA,
-                   uint8_t pin_scl = BBQ10KEYBOARD_DEFAULT_SCL,
-                   uint8_t port = BBQ10KEYBOARD_DEFAULT_I2C_PORT);
+                   gpio_num_t pin_sda = BBQ10KEYBOARD_DEFAULT_SDA,
+                   gpio_num_t pin_scl = BBQ10KEYBOARD_DEFAULT_SCL,
+                   i2c_port_t port = BBQ10KEYBOARD_DEFAULT_I2C_PORT);
 
         void reset(void);
 
@@ -57,6 +62,9 @@ class BBQ10Keyboard
 
     private:
         uint8_t m_addr;
-        i2c_cmd_handle_t m_cmd;
         uint8_t m_port;
+        uint8_t *m_buf;
+        uint32_t m_bufsize;
 };
+
+} // namespace bbq10
