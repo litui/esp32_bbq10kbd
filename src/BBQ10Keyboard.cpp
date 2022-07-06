@@ -64,13 +64,6 @@ namespace bbq10 {
 #define PUD_UP           1
 
 BBQ10Keyboard::BBQ10Keyboard()
-    : m_wire(nullptr)
-{
-
-#define PUD_DOWN         0
-#define PUD_UP           1
-
-BBQ10Keyboard::BBQ10Keyboard()
 {
 }
 
@@ -282,11 +275,6 @@ uint16_t BBQ10Keyboard::readRegister16(uint8_t reg) const
 uint8_t BBQ10Keyboard::readRegisterBit(uint8_t reg, uint8_t bit)
 {
     return ((readRegister8(reg) >> (bit)) & 0x01);
-}
-
-uint8_t BBQ10Keyboard::readRegisterBit(uint8_t reg, uint8_t bit)
-{
-    return bitRead(readRegister8(reg), bit);
 }
 
 void BBQ10Keyboard::writeRegister(uint8_t reg, uint8_t value)
