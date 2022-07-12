@@ -3,10 +3,18 @@
 
 namespace bbq10 {
 
-static const uint8_t BBQ10KEYBOARD_DEFAULT_ADDR = 0x1f;
-static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SDA = GPIO_NUM_21;
-static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SCL = GPIO_NUM_22;
-static const i2c_port_t BBQ10KEYBOARD_DEFAULT_I2C_PORT = I2C_NUM_0;
+// Now leaning on this incredibly clunky way to detect board differences
+#if CONFIG_IDF_TARGET_ESP32S3
+    static const uint8_t BBQ10KEYBOARD_DEFAULT_ADDR = 0x1f;
+    static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SDA = GPIO_NUM_8;
+    static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SCL = GPIO_NUM_9;
+    static const i2c_port_t BBQ10KEYBOARD_DEFAULT_I2C_PORT = I2C_NUM_0;
+#else
+    static const uint8_t BBQ10KEYBOARD_DEFAULT_ADDR = 0x1f;
+    static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SDA = GPIO_NUM_21;
+    static const gpio_num_t BBQ10KEYBOARD_DEFAULT_SCL = GPIO_NUM_22;
+    static const i2c_port_t BBQ10KEYBOARD_DEFAULT_I2C_PORT = I2C_NUM_0;
+#endif
 
 static const char* TAG = "BBQ10Keyboard";
 

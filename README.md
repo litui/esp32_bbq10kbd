@@ -7,6 +7,13 @@ Be sure to look over the code as the examples are not yet ported.
 
 The firmware that this library should be used with can be found here: https://github.com/solderparty/bbq10kbd_i2c_sw
 
+# Tested:
+
+I2C reads and writes on:
+- Adafruit "Huzzah32" ESP32 Feather
+- Sparkfun ESP32 Thing Plus C
+- Unexpected Maker FeatherS3 (ESP32-S3)
+
 # Installation
 
 Within your ESP-IDF project directory (project must be git-based):
